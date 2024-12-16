@@ -10,7 +10,7 @@
 Adafruit_MCP2515 mcp(CS_PIN);
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(250000);
   while (!Serial) delay(10);
 
   Serial.println("Adafruit MCP2515 CAN Console Example");
@@ -47,26 +47,18 @@ void receiveCANMessage() {
   }
 
   // Display the received CAN message
-  Serial.println("-------------------------------------------------");
-  Serial.print("ID: ");
-  Serial.print("0x");
-  Serial.print(id, HEX);
-  if (isExtended) Serial.print(" (Extended)");
-  if (isRemote) Serial.print(" (Remote Request)");
-  Serial.println();
+  Serial.print("{\"ID\":");
+  Serial.print(id);
 
-  Serial.print("Length: ");
-  Serial.println(len);
+  Serial.print(",\"Length\":");
+  Serial.print(len);
 
-  Serial.print("Data: ");
+  Serial.print(",\"Data\":[");
   for (uint8_t i = 0; i < len; i++) {
-    if (i > 0) Serial.print(" ");
-    Serial.print("0x");
-    if (data[i] < 0x10) Serial.print("0"); // Add leading zero for single digit
-    Serial.print(data[i], HEX);
+    if(i != 0) Serial.print(",");
+    Serial.print(data[i]);
   }
-  Serial.println();
-  Serial.println("-------------------------------------------------");
+  Serial.println("]}");
 }
 
 
