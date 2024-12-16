@@ -1,12 +1,11 @@
 import sys
-import time 
 import json
+import time
 import serial
 import threading
-import pandas as pd
-import numpy as np
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
-                             QTableWidget, QTableWidgetItem, QWidget, QLabel)
+                             QTableWidget, QTableWidgetItem, QWidget, QLabel, 
+                             QLineEdit, QPushButton, QFormLayout)
 from PyQt5.QtCore import pyqtSignal, QObject, Qt
 from PyQt5.QtGui import QFont
 
@@ -21,7 +20,7 @@ class CANMessageReceiver(QObject):
         self.running = False
         self.serial_connection = None
         self.last_receive_times = {}
-        self.recent_periods = {}  # Tracks recent periods for each CAN ID
+        self.recent_periods = {}
 
     def connect(self):
         try:
@@ -56,7 +55,7 @@ class CANMessageReceiver(QObject):
                             self.recent_periods[can_id] = []
 
                         self.recent_periods[can_id].append(period)
-                        if len(self.recent_periods[can_id]) > 20:  # Rolling window of 5
+                        if len(self.recent_periods[can_id]) > 10:  # Rolling window of 10
                             self.recent_periods[can_id].pop(0)
 
                         # Compute average of recent periods
@@ -73,6 +72,28 @@ class CANMessageReceiver(QObject):
                 print(f"Error receiving message: {e}")
                 self.running = False
 
+    def send_message(self, can_id, length, data):
+        """
+        Send a CAN frame through the serial connection.
+        :param can_id: int - CAN ID of the frame
+        :param length: int - Length of the data (1-8 bytes)
+        :param data: list[int] - List of data bytes (0-255)
+        """
+        if not self.serial_connection or not self.running:
+            print("Error: Serial connection is not active.")
+            return
+
+        if length > 8 or length < 1:
+            print("Error: Length must be between 1 and 8 bytes.")
+            return
+
+        try:
+            outString = f"{can_id},{length},{','.join([str(d) for d in data])}"
+            # Send the frame as a JSON string
+            self.serial_connection.write((outString + '\n').encode('utf-8'))
+            print(f"Sent frame: {outString}")
+        except Exception as e:
+            print(f"Error sending message: {e}")
 
     def stop(self):
         self.running = False
@@ -115,7 +136,48 @@ class CANMessageVisualizer(QMainWindow):
             print("Failed to connect to serial port")
             sys.exit(1)
 
+        # Add frame sending section
+        self.add_send_frame_section(main_layout)
+
         self.show()
+
+    def add_send_frame_section(self, layout):
+        # Form layout for sending CAN frames
+        form_layout = QFormLayout()
+
+        # Input fields
+        self.id_input = QLineEdit()
+        self.len_input = QLineEdit()
+        self.data_input = QLineEdit()
+
+        form_layout.addRow("CAN ID (hex):", self.id_input)
+        form_layout.addRow("Length (1-8):", self.len_input)
+        form_layout.addRow("Data (comma-separated):", self.data_input)
+
+        # Send button
+        send_button = QPushButton("Send Frame")
+        send_button.clicked.connect(self.handle_send_frame)
+        form_layout.addWidget(send_button)
+
+        # Add the form to the main layout
+        layout.addLayout(form_layout)
+
+    def handle_send_frame(self):
+        # Retrieve user input
+        try:
+            can_id = int(self.id_input.text(), 16)  # Convert hex ID to integer
+            length = int(self.len_input.text())  # Convert length to integer
+            data = [int(byte.strip(), 16) for byte in self.data_input.text().split(',')]  # Parse data bytes
+
+            # Validate input
+            if len(data) != length:
+                print("Error: Length does not match number of data bytes.")
+                return
+
+            # Send the frame
+            self.receiver.send_message(can_id, length, data)
+        except ValueError:
+            print("Error: Invalid input format. Check your ID, length, and data.")
 
     def update_can_data(self, message):
         # Convert ID to hex string for consistent key
@@ -158,7 +220,7 @@ class CANMessageVisualizer(QMainWindow):
             # Length
             self.table.setItem(row_position, 2, QTableWidgetItem(str(data['length'])))
 
-            # Period
+            # Period                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
             self.table.setItem(row_position, 3, QTableWidgetItem(f"{data['period']:.2f} ms"))
 
         # Resize columns to content
@@ -170,16 +232,10 @@ class CANMessageVisualizer(QMainWindow):
         event.accept()
 
 def main():
-    # Specify the serial port (change this to match your Arduino's port)
-    #SERIAL_PORT = '/dev/ttyACM0'  # Linux/Mac example
-    SERIAL_PORT = 'COM3'  # Windows example
-
+    SERIAL_PORT = 'COM3'  # Adjust to match your serial port
     app = QApplication(sys.argv)
     visualizer = CANMessageVisualizer(SERIAL_PORT)
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
     main()
-
-# Dependencies:
-# pip install pyserial pyqt5 numpy pandas
