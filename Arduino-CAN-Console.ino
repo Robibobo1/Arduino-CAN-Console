@@ -4,7 +4,7 @@
 #define CS_PIN 9
 
 // Set the CAN bus baud rate
-#define CAN_BAUDRATE 500000
+#define CAN_BAUDRATE 250000
 #define SERIAL_BAUDRATE 250000
 
 // Create an instance of the MCP2515 controller
